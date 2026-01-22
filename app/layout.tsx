@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Inconsolata } from "next/font/google";
 import "./globals.css";
-import Particles from "@/components/ui/Particles";
+import dynamic from "next/dynamic";
+
+const Particles = dynamic(() => import("@/components/ui/Particles"), {
+  ssr: false,
+});
 
 const inconsolata = Inconsolata({
   variable: "--font-inconsolata",
