@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String  @id @default(cuid())
+  email      String  @unique
+  password   String
+  name       String?
+  avatar     String?
+  role       String  @default("USER")
+  isVerified Boolean @default(false)
+
+  // Preferences
+  darkMode    Boolean @default(true)
+  emailAlerts Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bills         Bill[]
+  carbonScores  CarbonScore[]
+  challenges    UserChallenge[]
+  carbonBudgets CarbonBudget[]
+
+  @@map("users")
+}
+
+model Bill {
+  id             String   @id @default(cuid())
+  type           String // electricity, petrol, diesel, lpg, gas, water
+  amount         Float // monetary amount
+  units          Float? // kWh, liters, kg etc.
+  unitType       String? // kWh, L, kg
+  carbonEmission Float // calculated CO2 in kg
+  date           DateTime
+  month          String // YYYY-MM format for easy grouping
+  receiptUrl     String?
+  extractedData  String? // JSON of OCR extracted data
+  notes          String?
+  entryMethod    String   @default("manual") // "scanner" or "manual"
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bills")
+}
+
+model CarbonScore {
+  id            String @id @default(cuid())
+  month         String // YYYY-MM format
+  totalEmission Float // Total CO2 in kg
+  score         Int // 0-100 score
+  grade         String // A, B, C, D, E, F
+
+  // Breakdown by category
+  electricityEmission Float @default(0)
+  transportEmission   Float @default(0)
+  gasEmission         Float @default(0)
+  waterEmission       Float @default(0)
+  otherEmission       Float @default(0)
+
+  // Comparisons
+  previousMonthChange Float? // % change from previous month
+  nationalAverage     Float? // national average for comparison
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month])
+  @@map("carbon_scores")
+}
+
+model Challenge {
+  id              String  @id @default(cuid())
+  title           String
+  description     String
+  category        String // transport, energy, lifestyle, food
+  difficulty      String  @default("medium") // easy, medium, hard
+  targetReduction Float // kg CO2 saved
+  duration        Int // days
+  points          Int     @default(100)
+  icon            String?
+  isActive        Boolean @default(true)
+
+  userChallenges UserChallenge[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("challenges")
+}
+
+model UserChallenge {
+  id          String   @id @default(cuid())
+  status      String   @default("active") // active, completed, failed
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  progress    Int      @default(0) // 0-100
+  carbonSaved Float    @default(0)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, challengeId])
+  @@map("user_challenges")
+}
+
+model CarbonBudget {
+  id              String @id @default(cuid())
+  month           String // YYYY-MM format
+  targetEmission  Float // Target kg CO2 for the month
+  currentEmission Float  @default(0)
+
+  // Category-wise budgets
+  electricityBudget Float?
+  transportBudget   Float?
+  gasBudget         Float?
+
+  // Alert settings
+  alertAt50  Boolean @default(true)
+  alertAt80  Boolean @default(true)
+  alertAt100 Boolean @default(true)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month])
+  @@map("carbon_budgets")
+}
+
+model Recommendation {
+  id              String  @id @default(cuid())
+  title           String
+  description     String
+  category        String // energy, transport, lifestyle, diet
+  impact          String  @default("medium") // low, medium, high
+  potentialSaving Float // kg CO2 per month
+  difficulty      String  @default("easy") // easy, medium, hard
+  isGlobal        Boolean @default(true) // true = shown to all users
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("recommendations")
+}
+
+model EmissionFactor {
+  id        String   @id @default(cuid())
+  type      String // electricity, petrol, diesel, lpg, gas, water
+  factor    Float // kg CO2 per unit
+  unit      String // kWh, L, kg, etc.
+  region    String   @default("IN") // Country code
+  source    String? // Data source reference
+  validFrom DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, region])
+  @@map("emission_factors")
+}
