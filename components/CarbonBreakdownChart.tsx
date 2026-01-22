@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { IconBolt, IconCar, IconMeat, IconShoppingBag, IconLeaf } from "@tabler/icons-react"
 
 interface BreakdownData {
@@ -134,7 +135,7 @@ export function CarbonBreakdownChart({ data, total }: CarbonBreakdownChartProps)
                 />
               )
               return acc
-            }, [] as JSX.Element[])}
+            }, [] as React.ReactElement[])}
           </svg>
         </div>
       </div>

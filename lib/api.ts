@@ -1,6 +1,6 @@
 // API helper for making authenticated requests
 
-export async function apiRequest<T>(
+export async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<{ data: T | null; error: string | null }> {
