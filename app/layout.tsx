@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { Inconsolata } from "next/font/google";
 import "./globals.css";
-import dynamic from "next/dynamic";
-
-const Particles = dynamic(() => import("@/components/ui/Particles"), {
-  ssr: false,
-});
+import ParticlesWrapper from "@/components/ui/ParticlesWrapper";
 
 const inconsolata = Inconsolata({
   variable: "--font-inconsolata",
@@ -29,7 +25,7 @@ export default function RootLayout({
         style={{ fontFamily: 'var(--font-inconsolata)' }}
       >
         <div className="fixed top-0 left-0 w-screen h-screen z-0 overflow-hidden">
-          <Particles
+          <ParticlesWrapper
             className="w-full h-full"
             particleCount={200}
             particleSpread={10}
