@@ -21,6 +21,12 @@ import {
   IconTree,
   IconWorldPin,
   IconChartBar,
+  IconShieldCheck,
+  IconAlertTriangle,
+  IconShieldX,
+  IconBulb,
+  IconTarget,
+  IconWorld,
 } from "@tabler/icons-react"
 import { api } from "@/lib/api"
 import { CarbonBreakdownChart } from "@/components/CarbonBreakdownChart"
@@ -49,6 +55,16 @@ interface CarbonScore {
   otherEmission: number
 }
 
+interface Recommendation {
+  id: string
+  title: string
+  description: string
+  category: string
+  impact: string
+  potentialSaving: number
+  difficulty: string
+}
+
 interface ReportData {
   bills: Bill[]
   scores: CarbonScore[]
@@ -68,6 +84,7 @@ interface ReportData {
     water: number
     other: number
   }
+  recommendations: Recommendation[]
 }
 
 export default function ReportPage() {
@@ -85,8 +102,12 @@ export default function ReportPage() {
         // Fetch carbon scores
         const { data: scoresData } = await api.getCarbonScores({ limit: 12 })
 
+        // Fetch recommendations
+        const { data: recommendationsData } = await api.getRecommendations({ limit: 10 })
+
         const bills: Bill[] = billsData?.bills || []
         const scores: CarbonScore[] = scoresData?.scores || []
+        const recommendations: Recommendation[] = recommendationsData?.recommendations || []
 
         // Filter bills based on selected period
         const now = new Date()
@@ -169,6 +190,7 @@ export default function ReportPage() {
             worstMonth,
           },
           breakdown,
+          recommendations,
         })
       } catch (error) {
         console.error("Failed to fetch report data:", error)
@@ -187,49 +209,229 @@ export default function ReportPage() {
   const handleDownload = () => {
     if (!reportData) return
 
-    const report = `
-CARBON FOOTPRINT REPORT
-========================
-Generated: ${new Date().toLocaleDateString()}
-Period: ${selectedPeriod === 'all' ? 'All Time' : selectedPeriod}
+    const avgMonthly = reportData.summary.avgMonthlyCarbon
+    const indiaAvg = 167 // kg CO2/month
+    const globalAvg = 333 // kg CO2/month
+    const parisTarget = 167 // kg CO2/month (2 tonnes/year per capita)
 
-SUMMARY
--------
+    let safetyStatus = ""
+    let safetyLevel = ""
+    if (avgMonthly <= parisTarget) {
+      safetyStatus = "SAFE - Within sustainable limits"
+      safetyLevel = "Your emissions are within the Paris Agreement targets."
+    } else if (avgMonthly <= indiaAvg) {
+      safetyStatus = "MODERATE - Within national average"
+      safetyLevel = "Your emissions are above sustainable targets but within national average."
+    } else if (avgMonthly <= globalAvg) {
+      safetyStatus = "HIGH - Above national average"
+      safetyLevel = "Your emissions exceed the national average. Action recommended."
+    } else {
+      safetyStatus = "CRITICAL - Significantly above global average"
+      safetyLevel = "Your emissions are significantly high. Immediate action needed."
+    }
+
+    const report = `
+╔════════════════════════════════════════════════════════════════════╗
+║                   CARBON FOOTPRINT REPORT                          ║
+║                    Sustainability Assessment                       ║
+╚════════════════════════════════════════════════════════════════════╝
+
+Generated: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+Period: ${selectedPeriod === 'all' ? 'All Time' : selectedPeriod}
+Report ID: ${Date.now().toString(36).toUpperCase()}
+
+════════════════════════════════════════════════════════════════════
+
+EXECUTIVE SUMMARY
+-----------------
 Total Carbon Emissions: ${reportData.summary.totalCarbon.toFixed(2)} kg CO2
 Total Bills Recorded: ${reportData.summary.totalBills}
-Average Monthly Emissions: ${reportData.summary.avgMonthlyCarbon.toFixed(2)} kg CO2
+Average Monthly Emissions: ${avgMonthly.toFixed(2)} kg CO2/month
+Trees Needed to Offset: ${(reportData.summary.totalCarbon / 21).toFixed(1)} trees/year
 
-ENTRY METHODS
--------------
-Scanner (OCR): ${reportData.summary.scannerEntries} entries
-Manual Entry: ${reportData.summary.manualEntries} entries
+════════════════════════════════════════════════════════════════════
 
-BREAKDOWN BY CATEGORY
----------------------
-Electricity: ${reportData.breakdown.electricity.toFixed(2)} kg CO2 (${((reportData.breakdown.electricity / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)}%)
-Transport: ${reportData.breakdown.transport.toFixed(2)} kg CO2 (${((reportData.breakdown.transport / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)}%)
-Gas/LPG: ${reportData.breakdown.gas.toFixed(2)} kg CO2 (${((reportData.breakdown.gas / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)}%)
-Water: ${reportData.breakdown.water.toFixed(2)} kg CO2 (${((reportData.breakdown.water / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)}%)
-Other: ${reportData.breakdown.other.toFixed(2)} kg CO2 (${((reportData.breakdown.other / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)}%)
+SAFETY STATUS & SUSTAINABILITY ASSESSMENT
+------------------------------------------
+Status: ${safetyStatus}
+Assessment: ${safetyLevel}
 
-MONTHLY ANALYSIS
-----------------
+Your Monthly Average: ${avgMonthly.toFixed(2)} kg CO2
+Paris Agreement Target: ${parisTarget} kg CO2/month (2 tonnes/year)
+India National Average: ${indiaAvg} kg CO2/month
+Global Average: ${globalAvg} kg CO2/month
+
+Comparison with Standards:
+  • vs Paris Target: ${avgMonthly > parisTarget ? '+' : ''}${((avgMonthly - parisTarget) / parisTarget * 100).toFixed(1)}%
+  • vs India Average: ${avgMonthly > indiaAvg ? '+' : ''}${((avgMonthly - indiaAvg) / indiaAvg * 100).toFixed(1)}%
+  • vs Global Average: ${avgMonthly > globalAvg ? '+' : ''}${((avgMonthly - globalAvg) / globalAvg * 100).toFixed(1)}%
+
+════════════════════════════════════════════════════════════════════
+
+GLOBAL SUSTAINABILITY INDEX
+----------------------------
+
+UN Sustainable Development Goals (SDG 13 - Climate Action):
+  Target: Limit global warming to 1.5°C above pre-industrial levels
+  Per Capita Budget: 2 tonnes CO2/year (~167 kg/month)
+  Your Performance: ${avgMonthly <= parisTarget ? '✓ ON TRACK' : '✗ NEEDS IMPROVEMENT'}
+
+Paris Agreement Alignment:
+  2030 Target: 50% reduction from current levels
+  Required Monthly Avg: ${parisTarget} kg CO2
+  Current Gap: ${Math.max(0, avgMonthly - parisTarget).toFixed(2)} kg CO2/month
+
+Global Carbon Budget (2026):
+  Remaining Global Budget: ~300 Gt CO2 (for 1.5°C target)
+  Individual Contribution: ${(reportData.summary.totalCarbon / 1000).toFixed(4)} tonnes
+
+Sustainability Rating: ${avgMonthly <= parisTarget ? 'A (Excellent)' : avgMonthly <= indiaAvg ? 'B (Good)' : avgMonthly <= globalAvg ? 'C (Average)' : 'D (Needs Improvement)'}
+
+════════════════════════════════════════════════════════════════════
+
+DATA ENTRY METHODS
+------------------
+Scanner (OCR): ${reportData.summary.scannerEntries} entries (${(reportData.summary.scannerEntries / reportData.summary.totalBills * 100 || 0).toFixed(1)}%)
+Manual Entry: ${reportData.summary.manualEntries} entries (${(reportData.summary.manualEntries / reportData.summary.totalBills * 100 || 0).toFixed(1)}%)
+
+════════════════════════════════════════════════════════════════════
+
+CARBON DEPOSIT BREAKDOWN BY CATEGORY
+-------------------------------------
+${[
+  { name: 'Electricity', value: reportData.breakdown.electricity, icon: '⚡' },
+  { name: 'Transport', value: reportData.breakdown.transport, icon: '🚗' },
+  { name: 'Gas/LPG', value: reportData.breakdown.gas, icon: '🔥' },
+  { name: 'Water', value: reportData.breakdown.water, icon: '💧' },
+  { name: 'Other', value: reportData.breakdown.other, icon: '📦' },
+].map(cat => {
+  const percent = ((cat.value / reportData.summary.totalCarbon) * 100 || 0).toFixed(1)
+  const bar = '█'.repeat(Math.floor(parseFloat(percent) / 5))
+  return `${cat.icon} ${cat.name.padEnd(15)} ${cat.value.toFixed(2).padStart(8)} kg CO2  ${percent.padStart(5)}%  ${bar}`
+}).join('\n')}
+
+════════════════════════════════════════════════════════════════════
+
+MONTHLY PERFORMANCE ANALYSIS
+-----------------------------
 Best Month: ${reportData.summary.bestMonth ? `${reportData.summary.bestMonth.month} (${reportData.summary.bestMonth.emission.toFixed(2)} kg CO2)` : 'N/A'}
 Worst Month: ${reportData.summary.worstMonth ? `${reportData.summary.worstMonth.month} (${reportData.summary.worstMonth.emission.toFixed(2)} kg CO2)` : 'N/A'}
 
-ENVIRONMENTAL IMPACT
---------------------
-Trees needed to offset: ${(reportData.summary.totalCarbon / 21).toFixed(1)} trees/year
-Equivalent driving distance: ${(reportData.summary.totalCarbon / 0.21).toFixed(0)} km
+${reportData.summary.bestMonth && reportData.summary.worstMonth
+  ? `Variation: ${((reportData.summary.worstMonth.emission - reportData.summary.bestMonth.emission) / reportData.summary.bestMonth.emission * 100).toFixed(1)}% difference`
+  : ''}
+
+════════════════════════════════════════════════════════════════════
+
+ENVIRONMENTAL IMPACT EQUIVALENTS
+---------------------------------
+Your ${reportData.summary.totalCarbon.toFixed(1)} kg CO2 emissions are equivalent to:
+
+  🌳 Trees: ${(reportData.summary.totalCarbon / 21).toFixed(1)} trees needed for 1 year
+  🚗 Driving: ${(reportData.summary.totalCarbon / 0.21).toFixed(0)} km in a petrol car
+  ❄️  Ice Melted: ${(reportData.summary.totalCarbon * 3).toFixed(0)} cm² of Arctic ice
+  💡 Light Bulbs: ${(reportData.summary.totalCarbon * 10).toFixed(0)} hours of 60W bulb
+  🎈 Balloons: ${(reportData.summary.totalCarbon * 509).toFixed(0)} balloons filled with CO2
+  📱 Phone Charges: ${(reportData.summary.totalCarbon * 122).toFixed(0)} smartphone charges
+
+════════════════════════════════════════════════════════════════════
+
+WAYS TO REDUCE CARBON EMISSIONS
+--------------------------------
+Personalized Recommendations Based on Your Usage:
+
+${reportData.recommendations.slice(0, 10).map((rec, idx) => `
+${idx + 1}. ${rec.title.toUpperCase()}
+   Category: ${rec.category.charAt(0).toUpperCase() + rec.category.slice(1)}
+   Impact: ${rec.impact.charAt(0).toUpperCase() + rec.impact.slice(1)}
+   Potential Saving: ${rec.potentialSaving} kg CO2/month
+   Difficulty: ${rec.difficulty.charAt(0).toUpperCase() + rec.difficulty.slice(1)}
+
+   ${rec.description}
+   `).join('\n')}
+
+General Reduction Strategies:
+
+ELECTRICITY (Current: ${reportData.breakdown.electricity.toFixed(1)} kg CO2):
+  • Switch to LED bulbs (60-80% energy savings)
+  • Unplug devices when not in use (phantom power = 10% of bill)
+  • Use natural light during daytime
+  • Set AC to 24°C instead of 18°C (saves 20% energy)
+  • Install solar panels (100% renewable energy)
+
+TRANSPORT (Current: ${reportData.breakdown.transport.toFixed(1)} kg CO2):
+  • Use public transport (75% reduction vs car)
+  • Carpool with colleagues (50% reduction)
+  • Switch to electric/hybrid vehicles (60-80% reduction)
+  • Cycle or walk for short distances (<5km)
+  • Plan routes to avoid traffic congestion
+
+GAS/LPG (Current: ${reportData.breakdown.gas.toFixed(1)} kg CO2):
+  • Use pressure cooker (saves 50% gas)
+  • Cover pots while cooking (30% faster)
+  • Switch to induction cooking (more efficient)
+  • Regular maintenance of gas stoves
+  • Use renewable biogas alternatives
+
+WATER (Current: ${reportData.breakdown.water.toFixed(1)} kg CO2):
+  • Fix leaking taps immediately
+  • Install water-efficient fixtures
+  • Harvest rainwater
+  • Reuse greywater for gardening
+  • Take shorter showers (5 mins vs 10 mins)
+
+════════════════════════════════════════════════════════════════════
 
 DETAILED BILL HISTORY
----------------------
+----------------------
+${reportData.bills.length} total records
+
+Date          Type         Consumption        CO2 (kg)   Entry Method
+${'─'.repeat(70)}
 ${reportData.bills.map(bill =>
-  `${new Date(bill.date).toLocaleDateString()} | ${bill.type.toUpperCase()} | ${bill.units} ${bill.unitType} | ${bill.carbonEmission.toFixed(2)} kg CO2 | ${bill.entryMethod === 'scanner' ? 'SCANNED' : 'MANUAL'}`
+  `${new Date(bill.date).toLocaleDateString().padEnd(14)}${bill.type.toUpperCase().padEnd(13)}${(bill.units + ' ' + bill.unitType).padEnd(19)}${bill.carbonEmission.toFixed(2).padStart(9)}   ${bill.entryMethod === 'scanner' ? 'SCANNED' : 'MANUAL'}`
 ).join('\n')}
 
-========================
-Report generated by CarbonTrack
+════════════════════════════════════════════════════════════════════
+
+APPENDIX: EMISSION FACTORS USED
+--------------------------------
+Electricity: 0.82 kg CO2/kWh (India Grid)
+Petrol: 2.31 kg CO2/L
+Diesel: 2.68 kg CO2/L
+LPG: 1.51 kg CO2/L
+Natural Gas: 2.0 kg CO2/kg
+Water: 0.376 kg CO2/kL
+
+════════════════════════════════════════════════════════════════════
+
+REFERENCES & DATA SOURCES
+--------------------------
+1. IPCC Sixth Assessment Report (2021-2023)
+2. Paris Agreement - United Nations Framework Convention on Climate Change
+3. UN Sustainable Development Goals (SDG 13)
+4. India's National Action Plan on Climate Change (NAPCC)
+5. International Energy Agency (IEA) - CO2 Emissions Database
+6. EPA Greenhouse Gas Equivalencies Calculator
+7. Carbon Trust - Conversion Factors
+
+════════════════════════════════════════════════════════════════════
+
+NEXT STEPS & ACTION PLAN
+-------------------------
+1. Set monthly carbon budget: ${parisTarget} kg CO2
+2. Focus on highest emission category: ${Object.entries(reportData.breakdown).sort((a, b) => b[1] - a[1])[0][0]}
+3. Implement top 3 recommendations from above
+4. Track progress monthly
+5. Join carbon offset programs if needed
+
+════════════════════════════════════════════════════════════════════
+
+This report was generated by CarbonTrack - AI Carbon Footprint Calculator
+For more information, visit: https://carbontrack.app
+Support: support@carbontrack.app
+
+© ${new Date().getFullYear()} CarbonTrack. All rights reserved.
     `.trim()
 
     const blob = new Blob([report], { type: 'text/plain' })
@@ -355,6 +557,359 @@ Report generated by CarbonTrack
           </CardContent>
         </Card>
       </div>
+
+      {/* Safety Status & Sustainability Assessment */}
+      <Card className="bg-card/50 backdrop-blur border-green-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconShieldCheck className="h-5 w-5 text-green-500" />
+            Safety Status & Sustainability Assessment
+          </CardTitle>
+          <CardDescription>Comparison with global standards and targets</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const avgMonthly = reportData.summary.avgMonthlyCarbon
+            const indiaAvg = 167 // kg CO2/month
+            const globalAvg = 333 // kg CO2/month
+            const parisTarget = 167 // kg CO2/month (2 tonnes/year per capita)
+
+            let statusIcon = <IconShieldCheck className="h-12 w-12 text-green-500" />
+            let statusText = "SAFE"
+            let statusDesc = "Within sustainable limits"
+            let statusColor = "bg-green-500/10 border-green-500/20 text-green-500"
+
+            if (avgMonthly <= parisTarget) {
+              statusIcon = <IconShieldCheck className="h-12 w-12 text-green-500" />
+              statusText = "SAFE"
+              statusDesc = "Your emissions are within the Paris Agreement targets. Excellent work!"
+              statusColor = "bg-green-500/10 border-green-500/20 text-green-500"
+            } else if (avgMonthly <= indiaAvg) {
+              statusIcon = <IconAlertTriangle className="h-12 w-12 text-yellow-500" />
+              statusText = "MODERATE"
+              statusDesc = "Above sustainable targets but within national average. Room for improvement."
+              statusColor = "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
+            } else if (avgMonthly <= globalAvg) {
+              statusIcon = <IconAlertTriangle className="h-12 w-12 text-orange-500" />
+              statusText = "HIGH"
+              statusDesc = "Your emissions exceed the national average. Action recommended."
+              statusColor = "bg-orange-500/10 border-orange-500/20 text-orange-500"
+            } else {
+              statusIcon = <IconShieldX className="h-12 w-12 text-red-500" />
+              statusText = "CRITICAL"
+              statusDesc = "Significantly above global average. Immediate action needed."
+              statusColor = "bg-red-500/10 border-red-500/20 text-red-500"
+            }
+
+            return (
+              <div className="space-y-6">
+                {/* Status Banner */}
+                <div className={`p-6 rounded-lg border ${statusColor}`}>
+                  <div className="flex items-center gap-4">
+                    <div>{statusIcon}</div>
+                    <div className="flex-1">
+                      <div className="text-2xl font-bold mb-1">{statusText}</div>
+                      <div className="text-sm opacity-90">{statusDesc}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comparison Metrics */}
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                    <div className="text-sm text-muted-foreground mb-1">Your Monthly Avg</div>
+                    <div className="text-2xl font-bold">{avgMonthly.toFixed(1)} kg</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="text-sm text-muted-foreground mb-1">Paris Target</div>
+                    <div className="text-2xl font-bold text-blue-500">{parisTarget} kg</div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                    <div className="text-sm text-muted-foreground mb-1">India Average</div>
+                    <div className="text-2xl font-bold text-purple-500">{indiaAvg} kg</div>
+                  </div>
+                </div>
+
+                {/* Progress Bars */}
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between mb-2 text-sm">
+                      <span>vs Paris Agreement Target</span>
+                      <span className={avgMonthly > parisTarget ? 'text-red-500' : 'text-green-500'}>
+                        {avgMonthly > parisTarget ? '+' : ''}{((avgMonthly - parisTarget) / parisTarget * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.min(100, (avgMonthly / parisTarget) * 100)}
+                      className="h-2"
+                      indicatorClassName={avgMonthly <= parisTarget ? 'bg-green-500' : 'bg-red-500'}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-2 text-sm">
+                      <span>vs India National Average</span>
+                      <span className={avgMonthly > indiaAvg ? 'text-red-500' : 'text-green-500'}>
+                        {avgMonthly > indiaAvg ? '+' : ''}{((avgMonthly - indiaAvg) / indiaAvg * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.min(100, (avgMonthly / indiaAvg) * 100)}
+                      className="h-2"
+                      indicatorClassName={avgMonthly <= indiaAvg ? 'bg-green-500' : 'bg-orange-500'}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-2 text-sm">
+                      <span>vs Global Average</span>
+                      <span className={avgMonthly > globalAvg ? 'text-red-500' : 'text-green-500'}>
+                        {avgMonthly > globalAvg ? '+' : ''}{((avgMonthly - globalAvg) / globalAvg * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.min(100, (avgMonthly / globalAvg) * 100)}
+                      className="h-2"
+                      indicatorClassName={avgMonthly <= globalAvg ? 'bg-green-500' : 'bg-red-500'}
+                    />
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </CardContent>
+      </Card>
+
+      {/* Global Sustainability Index */}
+      <Card className="bg-card/50 backdrop-blur border-green-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconWorld className="h-5 w-5 text-green-500" />
+            Global Sustainability Index & Records
+          </CardTitle>
+          <CardDescription>Your contribution to global climate goals</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {/* SDG 13 - Climate Action */}
+            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <IconTarget className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <div className="font-semibold text-lg">UN SDG 13 - Climate Action</div>
+                  <div className="text-sm text-muted-foreground">
+                    Target: Limit global warming to 1.5°C above pre-industrial levels
+                  </div>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Per Capita Carbon Budget</div>
+                  <div className="text-xl font-bold">2 tonnes CO2/year</div>
+                  <div className="text-xs text-muted-foreground">(~167 kg/month)</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Your Performance</div>
+                  <div className={`text-xl font-bold ${reportData.summary.avgMonthlyCarbon <= 167 ? 'text-green-500' : 'text-red-500'}`}>
+                    {reportData.summary.avgMonthlyCarbon <= 167 ? '✓ ON TRACK' : '✗ NEEDS IMPROVEMENT'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Paris Agreement */}
+            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <IconWorldPin className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <div className="font-semibold text-lg">Paris Agreement Alignment</div>
+                  <div className="text-sm text-muted-foreground">
+                    2030 Target: 50% reduction in emissions from current levels
+                  </div>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Required Monthly Average</div>
+                  <div className="text-xl font-bold">167 kg CO2</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Current Gap</div>
+                  <div className="text-xl font-bold text-orange-500">
+                    {Math.max(0, reportData.summary.avgMonthlyCarbon - 167).toFixed(2)} kg CO2/month
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Global Carbon Budget */}
+            <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
+              <div className="flex items-start gap-3 mb-3">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                  <IconChartBar className="h-6 w-6 text-purple-500" />
+                </div>
+                <div>
+                  <div className="font-semibold text-lg">Global Carbon Budget (2026)</div>
+                  <div className="text-sm text-muted-foreground">
+                    Remaining budget to limit warming to 1.5°C
+                  </div>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Remaining Global Budget</div>
+                  <div className="text-xl font-bold">~300 Gt CO2</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Your Contribution</div>
+                  <div className="text-xl font-bold">{(reportData.summary.totalCarbon / 1000).toFixed(4)} tonnes</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sustainability Rating */}
+            <div className="p-4 rounded-lg bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20">
+              <div className="text-center">
+                <div className="text-sm text-muted-foreground mb-2">Overall Sustainability Rating</div>
+                <div className="text-5xl font-bold mb-2">
+                  {reportData.summary.avgMonthlyCarbon <= 167 ? 'A' :
+                   reportData.summary.avgMonthlyCarbon <= 250 ? 'B' :
+                   reportData.summary.avgMonthlyCarbon <= 333 ? 'C' : 'D'}
+                </div>
+                <div className="text-sm">
+                  {reportData.summary.avgMonthlyCarbon <= 167 ? 'Excellent - Carbon Neutral Path' :
+                   reportData.summary.avgMonthlyCarbon <= 250 ? 'Good - Minor Improvements Needed' :
+                   reportData.summary.avgMonthlyCarbon <= 333 ? 'Average - Significant Action Required' : 'Needs Improvement - Urgent Action Required'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ways to Reduce Carbon Emissions */}
+      <Card className="bg-card/50 backdrop-blur border-green-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconBulb className="h-5 w-5 text-green-500" />
+            Ways to Reduce Your Carbon Footprint
+          </CardTitle>
+          <CardDescription>Personalized recommendations based on your usage patterns</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {reportData.recommendations.length > 0 ? (
+              <>
+                <div className="grid gap-4">
+                  {reportData.recommendations.slice(0, 6).map((rec, idx) => (
+                    <div
+                      key={rec.id}
+                      className={`p-4 rounded-lg border ${
+                        rec.impact === 'high'
+                          ? 'bg-green-500/10 border-green-500/20'
+                          : rec.impact === 'medium'
+                          ? 'bg-blue-500/10 border-blue-500/20'
+                          : 'bg-gray-500/10 border-gray-500/20'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center font-bold text-green-500">
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-semibold text-lg mb-1">{rec.title}</div>
+                          <div className="text-sm text-muted-foreground mb-3">{rec.description}</div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-400 capitalize">
+                              {rec.category}
+                            </span>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs capitalize ${
+                              rec.impact === 'high' ? 'bg-green-500/20 text-green-400' :
+                              rec.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-gray-500/20 text-gray-400'
+                            }`}>
+                              {rec.impact} impact
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-400 capitalize">
+                              {rec.difficulty} difficulty
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-500/20 text-orange-400">
+                              Save {rec.potentialSaving} kg CO2/month
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Category-specific tips */}
+                <div className="mt-6 grid md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <IconBolt className="h-5 w-5 text-yellow-500" />
+                      <div className="font-semibold">Electricity Tips</div>
+                    </div>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Switch to LED bulbs (60-80% savings)</li>
+                      <li>• Unplug devices when not in use</li>
+                      <li>• Set AC to 24°C instead of 18°C</li>
+                      <li>• Use natural light during daytime</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <IconCar className="h-5 w-5 text-blue-500" />
+                      <div className="font-semibold">Transport Tips</div>
+                    </div>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Use public transport (75% reduction)</li>
+                      <li>• Carpool with colleagues</li>
+                      <li>• Cycle or walk for short distances</li>
+                      <li>• Plan routes to avoid traffic</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <IconFlame className="h-5 w-5 text-orange-500" />
+                      <div className="font-semibold">Gas/LPG Tips</div>
+                    </div>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Use pressure cooker (50% gas savings)</li>
+                      <li>• Cover pots while cooking</li>
+                      <li>• Switch to induction cooking</li>
+                      <li>• Regular stove maintenance</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <IconDroplet className="h-5 w-5 text-cyan-500" />
+                      <div className="font-semibold">Water Tips</div>
+                    </div>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Fix leaking taps immediately</li>
+                      <li>• Install water-efficient fixtures</li>
+                      <li>• Harvest rainwater</li>
+                      <li>• Take shorter showers (5 mins)</li>
+                    </ul>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No recommendations available yet. Keep tracking your emissions!
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Entry Method Stats */}
       <Card className="bg-card/50 backdrop-blur border-green-500/20">

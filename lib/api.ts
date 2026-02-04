@@ -165,10 +165,11 @@ export const api = {
     apiRequest(`/api/challenges/${challengeId}`, { method: 'DELETE' }),
 
   // Recommendations
-  getRecommendations: (params?: { category?: string; impact?: string }) => {
+  getRecommendations: (params?: { category?: string; impact?: string; limit?: number }) => {
     const searchParams = new URLSearchParams()
     if (params?.category) searchParams.set('category', params.category)
     if (params?.impact) searchParams.set('impact', params.impact)
+    if (params?.limit) searchParams.set('limit', params.limit.toString())
     return apiRequest(`/api/recommendations?${searchParams}`)
   },
 }
