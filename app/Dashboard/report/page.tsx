@@ -41,6 +41,7 @@ interface Bill {
   date: string
   month: string
   entryMethod: string
+  extractedData?: string | Record<string, unknown> | null
 }
 
 interface CarbonScore {
@@ -209,6 +210,22 @@ export default function ReportPage() {
   const handleDownload = () => {
     if (!reportData) return
 
+    // Extract user details from the most recent bill with userDetails
+    let userDetails: { name?: string | null, phone?: string | null, consumerId?: string | null, address?: string | null } | null = null
+    for (const bill of reportData.bills) {
+      if (bill.extractedData) {
+        try {
+          const data = typeof bill.extractedData === 'string' ? JSON.parse(bill.extractedData) : bill.extractedData
+          if (data.userDetails && (data.userDetails.name || data.userDetails.phone || data.userDetails.consumerId || data.userDetails.address)) {
+            userDetails = data.userDetails
+            break
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+    }
+
     const avgMonthly = reportData.summary.avgMonthlyCarbon
     const indiaAvg = 167 // kg CO2/month
     const globalAvg = 333 // kg CO2/month
@@ -240,7 +257,12 @@ Generated: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'nu
 Period: ${selectedPeriod === 'all' ? 'All Time' : selectedPeriod}
 Report ID: ${Date.now().toString(36).toUpperCase()}
 
-════════════════════════════════════════════════════════════════════
+${userDetails ? `────────────────────────────────────────────────────────────────────────
+
+CUSTOMER INFORMATION
+--------------------
+${userDetails.name ? `Name: ${userDetails.name}` : ''}${userDetails.name ? '\n' : ''}${userDetails.phone ? `Phone: ${userDetails.phone}` : ''}${userDetails.phone ? '\n' : ''}${userDetails.consumerId ? `Consumer ID: ${userDetails.consumerId}` : ''}${userDetails.consumerId ? '\n' : ''}${userDetails.address ? `Address: ${userDetails.address}` : ''}${userDetails.address ? '\n' : ''}
+` : ''}════════════════════════════════════════════════════════════════════
 
 EXECUTIVE SUMMARY
 -----------------

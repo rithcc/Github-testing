@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { getCurrentUser } from '@/lib/auth'
 
+// @ts-ignore - pdf-parse doesn't have proper TypeScript types
+const pdf = require('pdf-parse')
+
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
@@ -30,27 +33,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Convert file to base64
+    // Convert file to buffer
     const bytes = await file.arrayBuffer()
-    const base64 = Buffer.from(bytes).toString('base64')
+    const buffer = Buffer.from(bytes)
     const mimeType = file.type || 'image/jpeg'
+    const isPDF = mimeType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 
-    // Use GPT-4 Vision to extract bill data
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: [
+    let response
+
+    if (isPDF) {
+      // Handle PDF files by extracting text first
+      let extractedText = ''
+
+      try {
+        const pdfData = await pdf(buffer)
+        extractedText = pdfData.text || ''
+
+        if (!extractedText || extractedText.trim().length === 0) {
+          throw new Error('No text could be extracted from PDF')
+        }
+      } catch (pdfError) {
+        console.error('PDF parsing error:', pdfError)
+        return NextResponse.json(
+          { error: 'Failed to extract text from PDF. The PDF might be an image-based scan. Please try uploading an image (JPG/PNG) instead.' },
+          { status: 422 }
+        )
+      }
+
+      // Use GPT-4 text model for PDF text analysis
+      try {
+        response = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
             {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`,
-              },
-            },
-            {
-              type: 'text',
-              text: `Analyze this bill/receipt image and extract the following information. Return ONLY a valid JSON object with no additional text or markdown formatting.
+              role: 'user',
+              content: `Analyze this bill/receipt text extracted from a PDF and extract the following information. Return ONLY a valid JSON object with no additional text or markdown formatting.
 
 Required JSON format:
 {
@@ -60,7 +77,13 @@ Required JSON format:
   "unitType": "kWh" | "L" | "kg" | "kL",
   "provider": "<provider name if visible>",
   "date": "<bill date if visible in YYYY-MM-DD format>",
-  "confidence": "high" | "medium" | "low"
+  "confidence": "high" | "medium" | "low",
+  "userDetails": {
+    "name": "<customer/consumer name if visible>",
+    "phone": "<phone number if visible>",
+    "consumerId": "<consumer ID/account number/customer ID if visible>",
+    "address": "<billing address if visible>"
+  }
 }
 
 Rules:
@@ -70,14 +93,86 @@ Rules:
 4. Always try to find the TOTAL AMOUNT in rupees - this is the most important field
 5. If you can see the total amount but not units, set units to null - we will calculate it
 6. Set confidence based on how clearly you can read the values
+7. For user details: Extract customer/consumer name, phone number, consumer ID/account number, and billing address if visible on the bill. Set null for any field that's not visible.
 
-Return ONLY the JSON object, nothing else.`,
+Return ONLY the JSON object, nothing else.
+
+Bill Text:
+${extractedText}`,
             },
           ],
-        },
-      ],
-      max_tokens: 500,
-    })
+          max_tokens: 500,
+        })
+      } catch (openaiError) {
+        console.error('OpenAI API error for PDF:', openaiError)
+        return NextResponse.json(
+          { error: 'Failed to analyze PDF content. Please try uploading an image instead.' },
+          { status: 422 }
+        )
+      }
+    } else {
+      // Handle image files with Vision API
+      const base64 = buffer.toString('base64')
+
+      // Validate it's an image
+      if (!mimeType.startsWith('image/')) {
+        return NextResponse.json(
+          { error: 'Invalid file type. Only images (JPG, PNG) and PDFs are supported.' },
+          { status: 400 }
+        )
+      }
+
+      // Use GPT-4 Vision to extract bill data
+      response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64}`,
+                },
+              },
+              {
+                type: 'text',
+                text: `Analyze this bill/receipt image and extract the following information. Return ONLY a valid JSON object with no additional text or markdown formatting.
+
+Required JSON format:
+{
+  "billType": "electricity" | "petrol" | "diesel" | "lpg" | "gas" | "water" | "shopping",
+  "totalAmount": <number in rupees - the final/total amount on the bill>,
+  "units": <number - kWh for electricity, liters for fuel, kg for gas, null if not visible>,
+  "unitType": "kWh" | "L" | "kg" | "kL",
+  "provider": "<provider name if visible>",
+  "date": "<bill date if visible in YYYY-MM-DD format>",
+  "confidence": "high" | "medium" | "low",
+  "userDetails": {
+    "name": "<customer/consumer name if visible>",
+    "phone": "<phone number if visible>",
+    "consumerId": "<consumer ID/account number/customer ID if visible>",
+    "address": "<billing address if visible>"
+  }
+}
+
+Rules:
+1. For electricity bills: Look for "units consumed", "kWh", "units" fields. Total amount is usually labeled as "Amount Payable", "Total", "Net Amount"
+2. For fuel receipts (petrol/diesel): Look for liters/litres, qty, volume. Total is the amount paid
+3. For LPG/gas: Look for kg, cylinder (1 cylinder = 14.2 kg). Price is usually around Rs 800-1000 per cylinder
+4. Always try to find the TOTAL AMOUNT in rupees - this is the most important field
+5. If you can see the total amount but not units, set units to null - we will calculate it
+6. Set confidence based on how clearly you can read the values
+7. For user details: Extract customer/consumer name, phone number, consumer ID/account number, and billing address if visible on the bill. Set null for any field that's not visible.
+
+Return ONLY the JSON object, nothing else.`,
+              },
+            ],
+          },
+        ],
+        max_tokens: 500,
+      })
+    }
 
     const text = response.choices[0]?.message?.content || ''
 

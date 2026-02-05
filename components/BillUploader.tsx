@@ -18,11 +18,19 @@ import {
   IconShoppingCart,
   IconLeaf,
   IconLoader2,
-  IconCamera
+  IconCamera,
+  IconUser
 } from "@tabler/icons-react"
 import { CameraScanner } from "@/components/CameraScanner"
 import { calculateCarbonFromBill } from "@/lib/emission-factors"
 import { api } from "@/lib/api"
+
+interface UserDetails {
+  name?: string | null
+  phone?: string | null
+  consumerId?: string | null
+  address?: string | null
+}
 
 interface ExtractedData {
   billType: string
@@ -33,6 +41,7 @@ interface ExtractedData {
   carbonFootprint: number
   billId?: string
   entryMethod: 'scanner' | 'manual'
+  userDetails?: UserDetails
 }
 
 export function BillUploader() {
@@ -275,7 +284,8 @@ export function BillUploader() {
         provider: data.provider,
         date: data.date || new Date().toLocaleDateString(),
         carbonFootprint: carbon,
-        entryMethod: 'scanner'
+        entryMethod: 'scanner',
+        userDetails: data.userDetails
       })
       setProgress(100)
     } catch (err) {
@@ -334,6 +344,7 @@ export function BillUploader() {
             units: extractedData.amount,
             date: billDate,
             entryMethod: extractedData.entryMethod,
+            userDetails: extractedData.userDetails,
           })
 
           if (apiError) {
@@ -402,6 +413,7 @@ export function BillUploader() {
         units: extractedData.amount,
         date: billDate,
         entryMethod: extractedData.entryMethod,
+        userDetails: extractedData.userDetails,
       })
 
       if (apiError) {
@@ -667,6 +679,42 @@ export function BillUploader() {
                   </div>
                 )}
 
+                {/* User Details Section */}
+                {extractedData.userDetails && (extractedData.userDetails.name || extractedData.userDetails.phone || extractedData.userDetails.consumerId || extractedData.userDetails.address) && (
+                  <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 mb-3">
+                      <IconUser className="h-4 w-4" />
+                      Customer Details
+                    </div>
+                    <div className="space-y-2">
+                      {extractedData.userDetails.name && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground text-sm">Name</span>
+                          <span className="font-medium text-sm">{extractedData.userDetails.name}</span>
+                        </div>
+                      )}
+                      {extractedData.userDetails.phone && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground text-sm">Phone</span>
+                          <span className="font-medium text-sm">{extractedData.userDetails.phone}</span>
+                        </div>
+                      )}
+                      {extractedData.userDetails.consumerId && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground text-sm">Consumer ID</span>
+                          <span className="font-medium text-sm">{extractedData.userDetails.consumerId}</span>
+                        </div>
+                      )}
+                      {extractedData.userDetails.address && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground text-sm">Address</span>
+                          <span className="font-medium text-sm">{extractedData.userDetails.address}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between p-3 rounded-lg bg-muted/50">
                   <span className="text-muted-foreground">Consumption</span>
                   <span className="font-medium">
@@ -795,6 +843,42 @@ export function BillUploader() {
                 {extractedData.amount} {extractedData.unit}
               </span>
             </div>
+
+            {/* User Details Section for manual entry */}
+            {extractedData.userDetails && (extractedData.userDetails.name || extractedData.userDetails.phone || extractedData.userDetails.consumerId || extractedData.userDetails.address) && (
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 mb-3">
+                  <IconUser className="h-4 w-4" />
+                  Customer Details
+                </div>
+                <div className="space-y-2">
+                  {extractedData.userDetails.name && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground text-sm">Name</span>
+                      <span className="font-medium text-sm">{extractedData.userDetails.name}</span>
+                    </div>
+                  )}
+                  {extractedData.userDetails.phone && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground text-sm">Phone</span>
+                      <span className="font-medium text-sm">{extractedData.userDetails.phone}</span>
+                    </div>
+                  )}
+                  {extractedData.userDetails.consumerId && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground text-sm">Consumer ID</span>
+                      <span className="font-medium text-sm">{extractedData.userDetails.consumerId}</span>
+                    </div>
+                  )}
+                  {extractedData.userDetails.address && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground text-sm">Address</span>
+                      <span className="font-medium text-sm">{extractedData.userDetails.address}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
               <div className="flex items-center justify-between">

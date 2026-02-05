@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { type, amount, units, date, notes, extractedData, entryMethod } = body
+    const { type, amount, units, date, notes, extractedData, entryMethod, userDetails } = body
 
     // Validation
     if (!type || !date) {
@@ -84,6 +84,12 @@ export async function POST(request: NextRequest) {
     const billDate = new Date(date)
     const month = `${billDate.getFullYear()}-${String(billDate.getMonth() + 1).padStart(2, '0')}`
 
+    // Prepare extractedData with userDetails
+    const dataToStore = extractedData ? { ...extractedData } : {}
+    if (userDetails) {
+      dataToStore.userDetails = userDetails
+    }
+
     const bill = await prisma.bill.create({
       data: {
         type: billType,
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
         date: billDate,
         month,
         notes: notes || null,
-        extractedData: extractedData ? JSON.stringify(extractedData) : null,
+        extractedData: Object.keys(dataToStore).length > 0 ? JSON.stringify(dataToStore) : null,
         entryMethod: entryMethod || 'manual',
         userId: payload.sub,
       },

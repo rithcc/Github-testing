@@ -94,6 +94,12 @@ export const api = {
     date: string
     notes?: string
     entryMethod?: 'scanner' | 'manual'
+    userDetails?: {
+      name?: string | null
+      phone?: string | null
+      consumerId?: string | null
+      address?: string | null
+    }
   }) =>
     apiRequest('/api/bills', {
       method: 'POST',
