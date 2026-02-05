@@ -114,13 +114,35 @@ export function CameraScanner({ onCapture, onClose }: CameraScannerProps) {
   const confirmCapture = () => {
     if (!canvasRef.current) return
 
-    // Convert canvas to blob/file
-    canvasRef.current.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" })
-        onCapture(file)
-      }
-    }, "image/jpeg", 0.9)
+    const canvas = canvasRef.current
+
+    // Resize image if too large (max 1200px width for better API processing)
+    const maxWidth = 1200
+    let width = canvas.width
+    let height = canvas.height
+
+    if (width > maxWidth) {
+      height = (height * maxWidth) / width
+      width = maxWidth
+    }
+
+    // Create a new canvas for resizing
+    const resizedCanvas = document.createElement('canvas')
+    resizedCanvas.width = width
+    resizedCanvas.height = height
+    const ctx = resizedCanvas.getContext('2d')
+
+    if (ctx) {
+      ctx.drawImage(canvas, 0, 0, width, height)
+
+      // Convert to blob with good compression
+      resizedCanvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], `scan-${Date.now()}.jpg`, { type: "image/jpeg" })
+          onCapture(file)
+        }
+      }, "image/jpeg", 0.85)
+    }
   }
 
   const handleClose = () => {
